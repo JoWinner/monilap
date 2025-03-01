@@ -1,47 +1,142 @@
-"use client"
+"use client";
 
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
-import { useAppContext } from "../../context/AppContext"
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useAppContext } from "../../context/AppContext";
+import { MoMoService } from "@/lib/momo"; // Updated import
+import { toast } from "@/components/ui/use-toast";
+import { PaymentResponse } from "@/lib/momo/types"; // New import
+import { logger } from "@/lib/momo/logger";
+import { generateReferenceId } from '@/lib/momo/utils';
 
 export default function ContributePage({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const { groups, contribute } = useAppContext()
-  const [amount, setAmount] = useState("100.00")
+  const router = useRouter();
+  const { groups, contribute } = useAppContext();
+  const [amount, setAmount] = useState("100.00");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const group = groups.find((g) => g.id === params.id)
+  const group = groups.find((g) => g.id === params.id);
 
   if (!group) {
-    return <div>Group not found</div>
+    return <div>Group not found</div>;
   }
 
   const handleNumberClick = (num: string) => {
     if (num === "←") {
-      setAmount((prev) => prev.slice(0, -1) || "0.00")
+      setAmount((prev) => prev.slice(0, -1) || "0.00");
     } else if (num === ".") {
       if (!amount.includes(".")) {
-        setAmount((prev) => prev + ".")
+        setAmount((prev) => prev + ".");
       }
     } else {
       setAmount((prev) => {
-        const [whole, decimal] = prev.split(".")
-        if (!decimal) return prev + num
-        if (decimal.length < 2) return `${whole}.${decimal}${num}`
-        return prev
-      })
+        const [whole, decimal] = prev.split(".");
+        if (!decimal) return prev + num;
+        if (decimal.length < 2) return `${whole}.${decimal}${num}`;
+        return prev;
+      });
     }
-  }
+  };
 
   const handleQuickAmount = (value: number) => {
-    setAmount(value.toFixed(2))
-  }
+    setAmount(value.toFixed(2));
+  };
 
-  const handleContribute = () => {
-    contribute(group.id, Number.parseFloat(amount))
-    router.push(`/groups/${group.id}`)
-  }
+  const handleContribute = async () => {
+    // Add country code if not present
+    // let formattedPhone = phoneNumber;
+    // if (!phoneNumber.startsWith("256")) {
+    //   formattedPhone = `256${phoneNumber}`;
+    // }
+
+
+    setIsProcessing(true);
+    const referenceId = generateReferenceId();
+
+    try {
+      logger.info("Initiating payment", {
+        amount,
+        phoneNumber,
+        referenceId,
+        groupId: group.id,
+      });
+
+      await MoMoService.requestPayment({
+        amount,
+        phoneNumber,
+        referenceId,
+        message: `Contribution to ${group.name}`,
+        currency: "EUR", // Make sure this matches your MTN MoMo configuration
+      });
+
+      let attempts = 0;
+      const maxAttempts = 12; // 1 minute maximum polling time
+
+      const checkStatus = async () => {
+        try {
+          attempts++;
+          logger.debug("Checking payment status", {
+            referenceId,
+            attempt: attempts,
+          });
+
+          const status = await MoMoService.checkPaymentStatus(referenceId);
+
+          switch (status.status) {
+            case "SUCCESSFUL":
+              logger.info("Payment successful", { referenceId });
+              contribute(group.id, Number.parseFloat(amount));
+              router.push(`/groups/${group.id}`);
+              break;
+
+            case "FAILED":
+              logger.error("Payment failed", status);
+              toast({
+                title: "Payment failed",
+                description: status.message || "Please try again",
+                variant: "destructive",
+              });
+              break;
+
+            case "PENDING":
+              if (attempts >= maxAttempts) {
+                logger.info("Payment timeout", { referenceId });
+                toast({
+                  title: "Payment pending",
+                  description:
+                    "Please check your mobile money app to complete the payment",
+                  // variant: "warning",
+                });
+                break;
+              }
+              setTimeout(checkStatus, 5000);
+              break;
+          }
+        } catch (error) {
+          logger.error("Status check failed", error);
+          toast({
+            title: "Status check failed",
+            description: "Could not verify payment status",
+            variant: "destructive",
+          });
+        }
+      };
+
+      checkStatus();
+    } catch (error) {
+      logger.error("Payment initiation failed", error);
+      toast({
+        title: "Payment failed",
+        description: "An error occurred while processing your payment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="pb-20">
@@ -62,7 +157,9 @@ export default function ContributePage({ params }: { params: { id: string } }) {
           <div className="text-5xl font-bold mb-4 flex items-center justify-center">
             <span className="text-3xl mr-2">$</span>
             <span>{amount.split(".")[0]}</span>
-            <span className="text-gray-500">.{amount.split(".")[1] || "00"}</span>
+            <span className="text-gray-500">
+              .{amount.split(".")[1] || "00"}
+            </span>
           </div>
           <div className="flex justify-center gap-3 mb-6 flex-wrap">
             {[10, 25, 50, 100, 200].map((quickAmount) => (
@@ -91,11 +188,27 @@ export default function ContributePage({ params }: { params: { id: string } }) {
           ))}
         </div>
 
-        <Button className="w-full bg-yellow-400 hover:bg-yellow-500 text-black h-14 text-lg" onClick={handleContribute}>
-          Contribute Now
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-2">
+            Mobile Money Number
+          </label>
+          <input
+            type="tel"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            placeholder="Enter your phone number"
+            className="w-full p-3 rounded-lg border border-zinc-700 bg-transparent"
+          />
+        </div>
+
+        <Button
+          className="w-full bg-yellow-400 hover:bg-yellow-500 text-black h-14 text-lg"
+          onClick={handleContribute}
+          disabled={isProcessing}
+        >
+          {isProcessing ? "Processing..." : "Contribute Now"}
         </Button>
       </main>
     </div>
-  )
+  );
 }
-
