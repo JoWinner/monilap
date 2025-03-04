@@ -1,0 +1,565 @@
+this is how it's supposed to progessivly work:
+
+Create API User
+
+a) The Provider sends a POST {baseURL}/apiuser request to Wallet platform.
+
+b) The Provider specifies the UUID Reference ID in the request Header and the subscription Key.
+
+c) Reference ID will be used as the User ID for the API user to be created.
+
+d) Wallet Platform creates the User and responds with 201
+
+Example
+Request:
+POST {baseURL}/apiuser HTTP/1.1
+
+Host: momodeveloper.mtn.com
+
+X-Reference-Id: c72025f5-5cd1-4630-99e4-8ba4722fad56
+
+Ocp-Apim-Subscription-Key: d484a1f0d34f4301916d0f2c9e9106a2{"providerCallbackHost": "clinic.com"}
+
+Response:
+
+201 Created
+
+
+
+API User and API Key Management
+Authentication
+There are two credentials used in the Open API.
+
+Subscription Key
+
+API User and API Key for Oauth 2.0
+
+The subscription key is used to give access to APIs in the API Manager portal. A user is assigned a subscription Key as and when the user subscribes to products in the API Manager Portal.
+
+The API User and API Key are used to grant access to the wallet system in a specific country. API user and Key are wholly managed by the user through Partner Portal.
+
+Users are allowed to generate/revoke API Keys through the Partner Portal.
+
+However, on Sandbox Environment a Provisioning API is exposed to enable users to generate their own API User and API Key for testing purposes only.
+
+Subscription Key
+The subscription key is part of the header of all requests sent to the API Manager. The subscription key can be found under user profile in the API Manager Portal.
+
+The subscription key is assigned to the Ocp-Apim-Subscription-Key parameter of the header.
+
+API User And API Key Management
+The API user and API key are provisioned differently in the sandbox and production environment.
+
+In the Sandbox a provisioning API is used to create the API User and API Key, whereas in the production environment the provisioning is done through the User Portal.
+
+The sections below describe the different steps required in creating API User and API key in Sandbox and Production Environments.
+
+Sandbox Provisioning
+Create API User
+
+a) The Provider sends a POST {baseURL}/apiuser request to Wallet platform.
+
+b) The Provider specifies the UUID Reference ID in the request Header and the subscription Key.
+
+c) Reference ID will be used as the User ID for the API user to be created.
+
+d) Wallet Platform creates the User and responds with 201
+
+Example
+Request:
+POST {baseURL}/apiuser HTTP/1.1
+
+Host: momodeveloper.mtn.com
+
+X-Reference-Id: c72025f5-5cd1-4630-99e4-8ba4722fad56
+
+Ocp-Apim-Subscription-Key: d484a1f0d34f4301916d0f2c9e9106a2{"providerCallbackHost": "clinic.com"}
+
+Response:
+
+201 Created
+
+Create API Key
+
+a) The Provider sends a POST {baseURL}/apiuser/{APIUser}/apikey request to Wallet platform.
+
+b) The Provider specifies the API User in the URL and subscription Key in the header.
+
+c) Wallet Platform creates the API Key and responds with 201 Created with the newly Created API Key in the Body.
+
+d) Provider now has both API User and API Key created.
+
+Example
+Request:
+
+POST {baseURL}/apiuser/c72025f5-5cd1-4630-99e4-8ba4722fad56/apikey HTTP/1.1
+
+Host: momodeveloper.mtn.com
+
+Ocp-Apim-Subscription-Key: d484a1f0d34f4301916d0f2c9e9106a2
+
+
+Response:
+
+HTTP/1.1 201 Created date: Wed, 10 Oct 2018 09:16:15 GMT content-type: application/json;charset=utf-8 content-length: 45 { "apiKey": "f1db798c98df4bcf83b538175893bbf0" }
+
+
+
+Oauth 2.0
+The Open API uses Oauth 2.0 token for authentication of request. User will request an access token using Client Credential Grant according to RFC 6749. The token received is according to RFC 6750 Bearer Token.
+
+The API user and API key are used in the basic authentication header when requesting the access token. The API user and key are managed in the Partner GUI for the country where the account is located. The Partner can create and manage API user and key from the Partner GUI.
+
+In the Sandbox, the API Key and API User are managed through the Provisioning API
+
+The received token has an expiry time. The same token can be used for transactions until it expires. A new token is requested by using the POST /token service in the same way as the initial token. The new token can be requested for before the previous one has expired to avoid authentication failure due to expired token.
+
+Important: The token must be treated as a credential and kept secret. The party that have access to the token will be authenticated as the user that requested the token. The below sequence describes the flow for requesting a token and using the token in a request.
+
+Provider system requests an access token using the API Key and API user as authentication.
+
+Wallet platform authenticates credentials and responds with the access token
+
+Provider system will use the access token for any request that is sent to Wallet Platform, e.g. POST /requesttopay
+
+Note: The same token shall be used if it is not expired.
+
+API Methods
+The API uses POST, GET, PUT methods. This section gives an overview of the interaction sequence used in the API and the usage of the methods.
+POST
+POST method is used for creating a resource in Wallet Platform. The request includes a reference id which is used to uniquely identify the specific resource that are created by the POST request. If a POST is using a reference id that is already used, then a duplication error response will be sent to the client.
+
+Example: POST /requesttopay
+
+The POST is an asynchronous method. The Wallet Platform will validate the request to ensure that it is correct according to the API specification and then answer with HTTP 202 Accepted. The created resource will get status PENDING. Once the request has been processed the status will be updated to SUCCESSFUL or FAILED. The requester may then be notified of the final status through callback.
+
+GET
+GET is used for requesting information about a specific resource. The URL in the GET shall include the reference of the resource. If a resource was created with POST then the reference id that was provided in the request is used as the identity of the resource.
+
+Example:
+
+POST /requesttopay request is sent with X-Reference-Id = 11377cbe-374c-43f6-a019-4fb70e57b617
+GET /requesttopay/11377cbe-374c-43f6-a019-4fb70e57b617 will return the status of the request.
+PUT
+The PUT method is used by the Open API when sending callbacks. Callback is sent if a callback URL is included in the POST request. The Wallet Platform will only send the callback once. There is no retry on the callback if the Partner system does not respond. If the callback is not received, then the Partner system can use GET to validate the status.
+
+Request to Pay
+Request to Pay service is used for requesting a payment from a customer (Payer). This can be used by e.g. an online web shop to request a payment for a customer. The customer is requested to approve the transaction on the customer client.
+
+
+a)Customer (Payer) have selected product(s) in the merchant web shop and decided to check out. Customer select to pay with Mobile Money.
+
+b)The provider system collects the account information for the customer e.g. mobile number and calculate the total amount of the products.
+
+c)The provider system sends a request to pay (POST /requesttopay) operation to Wallet Platform. This request includes the amount and customer (Payer) account holder number.
+
+d)Wallet Platform will respond with HTTP 202 Accepted to the provider system
+
+e)Provider shall inform the customer that a payment needs to be approved, by giving information on the merchant web page. For example, the merchant could show information that payment is being processed and that customer needs to approve using the own client, e.g. USSD, mobile app.
+
+f)Wallet Platform will process the request so that the customer can approve the payment. The request to pay will be in PENDING state until the customer have approved/Rejected the payment.
+
+g)The Customer (Payer) will use his/her own client to review the payment. Customer can approve or reject the payment.
+
+h) Wallet platform will transfer the funds if the customer approves the payment. Status of the payment is updated to SUCCESSFUL or FAILED.
+
+i)If a callback URL was provided in the POST /requesttopay then a callback will be sent once the request to pay have reached a final state (SUCCESSFUL, FAILED). Note the callback will only be sent once. There is no retry.
+
+j)GET request can be used for validating the status of the transaction. GET is used if the partner system has not requested a callback by providing a callback URL or if the callback was not received.
+
+
+
+
+implement the momo payment with these code snippets as reference:
+
+Exaple 1:
+
+index.js:
+
+require("dotenv").config();
+
+const MoMo = require("mtn-momo");
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const createDatabase = require("./db");
+
+const { Collections, Disbursements } = MoMo.create({
+  callbackHost: "example.com"
+});
+
+const collections = Collections({
+  userSecret: process.env.COLLECTIONS_USER_SECRET,
+  userId: process.env.COLLECTIONS_USER_ID,
+  primaryKey: process.env.COLLECTIONS_PRIMARY_KEY
+});
+
+const disbursements = Disbursements({
+  userSecret: process.env.DISBURSEMENTS_USER_SECRET,
+  userId: process.env.DISBURSEMENTS_USER_ID,
+  primaryKey: process.env.DISBURSEMENTS_PRIMARY_KEY
+});
+
+const app = express();
+const port = 3000;
+
+const db = createDatabase();
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(cors());
+
+/**
+ * Callbacks still do not work in sandbox
+ */
+app.all("/callback", function(req, res) {
+  console.log({ callbackRequestBody: req.body });
+  res.send("ok");
+});
+
+app.post("/pay", (req, res, next) => {
+  const { phone, productId, qty } = req.body;
+  collectPayment(phone, productId, qty)
+    .then(collectionId => poll(() => collections.getTransaction(collectionId)))
+    .then(() => payPercentage(productId, qty))
+    .then(disbursementId =>
+      poll(() => disbursements.getTransaction(disbursementId))
+    )
+    .then(() => {
+      res.send("Payment succeeded and seller was paid 80%");
+    })
+    .catch(error => {
+      if (error instanceof MoMo.MtnMoMoError) {
+        res.send(getFriendlyErrorMessage(error));
+      }
+
+      next(error);
+    });
+});
+
+app.get("/balance", (_req, res, next) =>
+  collections
+    .getBalance()
+    .then(account => res.json(account))
+    .catch(next)
+);
+
+app.use(express.static("public"));
+
+app.listen(port, () => {
+  console.log(`Listening on http://localhost:${port}`);
+});
+
+function collectPayment(phone, productId, qty) {
+  return db.createPayment(productId, qty).then(({ id, amount }) => {
+    return collections.requestToPay({
+      amount: amount,
+      currency: "EUR",
+      externalId: id,
+      payer: {
+        partyIdType: MoMo.PayerType.MSISDN,
+        partyId: phone
+      },
+      payerMessage: "testing",
+      payeeNote: "hello"
+    });
+  });
+}
+
+function payPercentage(productId, qty) {
+  return db.createPayout(productId, qty).then(({ id, amount, seller }) => {
+    return disbursements.transfer({
+      amount,
+      currency: "EUR",
+      externalId: id,
+      payee: {
+        partyIdType: "MSISDN",
+        partyId: seller
+      },
+      payerMessage: "testing",
+      payeeNote: "hello"
+    });
+  });
+}
+
+function poll(fn) {
+  return new Promise((resolve, reject) => {
+    const interval = setInterval(() => {
+      return fn()
+        .then(resolve)
+        .catch(reject)
+        .finally(() => clearInterval(interval));
+    }, 5000);
+  });
+}
+
+function getFriendlyErrorMessage(error) {
+  if (error instanceof MoMo.NotEnoughFundsError) {
+    return "You have insufficient balance";
+  }
+
+  // Other error messages go here
+
+  return "Something went wrong";
+}
+
+collection.js:
+const momo = require("mtn-momo");
+
+const { Collections } = momo.create({
+  callbackHost: "example.com"
+});
+
+const collections = Collections({
+  userSecret: "d061d14e985f439690a46335088e25c9",
+  userId: "63b1d7ba-aebf-4e69-a2be-7fb4dd6aed1d",
+  primaryKey: "2a022bcc89bc4984988fb8b9dbdbbc6c"
+});
+
+collections
+  .requestToPay({
+    amount: 50,
+    currency: "EUR",
+    externalId: "123456",
+    payer: {
+      partyIdType: "MSISDN",
+      partyId: "256774290781"
+    }
+  })
+  .then(transactionId => console.log(transactionId))
+  .catch(error => console.log(error));
+
+db.js:
+
+module.exports = function createDatabase() {
+  const database = {
+    Payouts: {
+      // [id]: {}
+    },
+    Payments: {
+      // [id]: {}
+    },
+    Products: {
+      "1": { price: 1000, seller: "256784555222" },
+      "2": { price: 2000, seller: "256784558222" }
+    }
+  };
+
+  return {
+    getDatabase() {
+      return database;
+    },
+    createPayout(productId, qty) {
+      return new Promise(resolve => {
+        const id = Date.now();
+        const { seller, price } = database.Products[productId];
+        const amount = price * qty * 0.8;
+
+        database.Payouts[id] = { seller, amount };
+
+        resolve({ id, ...database.Payouts[id] });
+      });
+    },
+    createPayment(productId, qty) {
+      return new Promise(resolve => {
+        const amount = database.Products[productId].price * qty;
+        const id = Date.now();
+
+        database.Payments[id] = { productId, amount, status: "pending" };
+
+        resolve({ id, ...database.Payments[id] });
+      });
+    },
+    updatePayment(id, status) {
+      return new Promise(resolve => {
+        database.Payments[id].status = status;
+        resolve(database.Payments[id]);
+      });
+    }
+  };
+}
+
+{{{
+Example 1 Docs:
+Step 1
+Clone this project
+Run npm install
+Create a .env file by copying .env.example. We shall be adding the Primary Key, User ID and User Secret for each product that we are subscribed to. In this case, Collections and Disbursements.
+Step 2
+Download and install ngrok.
+Extract it and run ./ngrok http 3000 in the same directory.
+Leave the terminal tab open as we shall use the NGROK URL generated for the next step.
+Step 3
+Open a new tab in the terminal
+We are going to generate the User ID and User Secret for each subscribed product on the MoMo sandbox using the ngrok url from the previous terminal and the primary key for each product.
+Run the command similar to this but specific to your instance.
+npx momo-sandbox --host blahblah.ngrok.com --primary-key blah-blah-uu-id
+Copy the Primary Key, User ID and User Secret for each product in the .env file created earlier.
+Run npm run start to start the application.
+Key Endpoints
+GET / -> Point of sale web page
+GET /pay -> initiates a payment
+ANY /callback -> receives callback from MTN
+
+}}}
+
+
+
+Example 2:
+
+index.js
+
+
+const express = require('express');
+const helmet = require("helmet");
+const morgan = require("morgan");
+const cors = require('cors');
+
+
+const momoservice = require('./Service/momoAPIservice.js');
+
+const app = express();
+require('dotenv').config();
+const port = 5000;
+
+app.use(express.json());
+app.use(helmet());
+app.use(morgan("common"));
+
+
+const allowedOrigins = [
+    'http://127.0.0.1:5500',
+    '*'
+];
+
+
+app.use(cors({
+    origin: function (origin, callback) {
+        console.log('origin:', origin);
+        console.log('allowedOrigins:', allowedOrigins);
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST'],
+    credentials: true
+}));
+
+const apiKey = process.env.OCP_APIM_KEY;
+const subscriptionKey = process.env.API_KEY;
+
+app.get('/api/keys', (req, res) => {
+    res.json({
+        apiKey: apiKey,
+        subscriptionKey: subscriptionKey,
+    });
+});
+
+
+app.use("/api", momoservice);
+
+app.get('/', (req, res) => {
+    res.send('API running');
+});
+
+app.listen(port, () => {
+    console.log(`server running at port ${port}`);
+});
+
+momoAPIService.js:
+const express = require('express');
+const axios = require('axios');
+const router = express.Router();
+const uuidv4 = require('uuid').v4;
+
+
+const momoHost = 'sandbox.momodeveloper.mtn.com';
+const momoTokenUrl = `https://${momoHost}/collection/token/`;
+const momoRequestToPayUrl = `https://${momoHost}/collection/v1_0/requesttopay`;
+
+let momoToken = null;
+
+
+// Endpoint to get token
+router.post('/get-momo-token', async (req, res) => {
+    try {
+        const { apiUserId, apiKey, subscriptionKey } = req.body;
+
+        // Concatenate API user ID and API key with a colon
+        const credentials = `${apiUserId}:${apiKey}`;
+        const encodedCredentials = Buffer.from(credentials).toString('base64');
+
+        const response = await fetch(momoTokenUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Ocp-Apim-Subscription-Key': subscriptionKey,
+                'Authorization': `Basic ${encodedCredentials}`,
+            },
+        });
+
+        const data = await response.json();
+
+        console.log('data from mobile money', data);
+        momoToken = data.access_token;
+
+        if (response.ok) {
+            res.json({ message: 'Token retrieved successfully' });
+        } else {
+            res.status(response.status).json({ message: 'Failed to retrieve token' });
+        }
+    } catch (error) {
+        console.error('error from mobile money', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+
+//request to pay 
+router.post('/request-to-pay', async (req, res) => {
+    try {
+        if (!momoToken) {
+            return res.status(400).json({ error: 'token not available' });
+        }
+
+        const { phoneNumber, totalAmount } = req.body;
+
+        // Generate a UUID
+        const referenceId = uuidv4();
+
+        const body = {
+            amount: totalAmount,
+            currency: "EUR",
+            externalId: 15322,
+            payer: {
+                partyIdType: 'MSISDN',
+                partyId: phoneNumber,
+            },
+            payerMessage: "paying for DSTV",
+            payeeNote: "Monthly payaments",
+        };
+
+        const momoResponse = await axios.post(
+            momoRequestToPayUrl,
+            body,
+            {
+                headers: {
+                    'X-Reference-Id': referenceId,
+                    'X-Target-Environment': 'sandbox',
+                    'Ocp-Apim-Subscription-Key': process.env.OCP_APIM_KEY,
+                    Authorization: `Bearer ${momoToken}`,
+                    'Content-type': 'application/json',
+                    'Cache-Control': 'no-cache',
+                },
+            }
+        );
+        res.json({ momoResponse: momoResponse.data });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+module.exports = router;

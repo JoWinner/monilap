@@ -17,21 +17,17 @@ export abstract class BaseMoMoService {
   protected abstract createApiUser(): Promise<string>;
   protected abstract createApiKey(apiUser: string): Promise<string>;
 
-  protected async getNewToken(
-    apiUser: string,
-    apiKey: string
-  ): Promise<string> {
+  protected async getNewToken(apiUser: string, apiKey: string): Promise<string> {
     logger.debug("Getting new token", { apiUser });
     try {
-      const credentials = Buffer.from(`${apiUser}:${apiKey}`).toString(
-        "base64"
-      );
+      const credentials = Buffer.from(`${apiUser}:${apiKey}`).toString("base64");
       const response = await axios.post<TokenResponse>("/api/momo", {
         endpoint: "/collection/token/",
         data: {},
         headers: {
           Authorization: `Basic ${credentials}`,
           "Content-Type": "application/json",
+          "Ocp-Apim-Subscription-Key": this.config.subscriptionKey,
         },
       });
 

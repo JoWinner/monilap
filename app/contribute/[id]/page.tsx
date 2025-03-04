@@ -46,30 +46,38 @@ export default function ContributePage({ params }: { params: { id: string } }) {
   };
 
   const handleContribute = async () => {
-    // Add country code if not present
-    // let formattedPhone = phoneNumber;
-    // if (!phoneNumber.startsWith("256")) {
-    //   formattedPhone = `256${phoneNumber}`;
-    // }
-
+    if (!phoneNumber) {
+      toast({
+        title: "Phone number required",
+        description: "Please enter your mobile money number",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsProcessing(true);
     const referenceId = generateReferenceId();
 
     try {
+      // Format phone number (remove non-digits and ensure it starts with country code)
+      let formattedPhone = phoneNumber.replace(/\D/g, "");
+      if (!formattedPhone.startsWith("256")) {
+        formattedPhone = `256${formattedPhone}`;
+      }
+
       logger.info("Initiating payment", {
         amount,
-        phoneNumber,
+        phoneNumber: formattedPhone,
         referenceId,
         groupId: group.id,
       });
 
       await MoMoService.requestPayment({
-        amount,
-        phoneNumber,
+        amount: parseFloat(amount), // Ensure amount is a number
+        phoneNumber: formattedPhone,
         referenceId,
         message: `Contribution to ${group.name}`,
-        currency: "EUR", // Make sure this matches your MTN MoMo configuration
+        currency: "EUR",
       });
 
       let attempts = 0;

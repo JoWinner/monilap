@@ -59,25 +59,19 @@ export class SandboxMoMoService extends BaseMoMoService {
     logger.debug("Requesting payment in sandbox", request);
     try {
       const token = await this.getValidToken();
-
-      // Format phone number (remove non-digits)
-      const formattedPhone = request.phoneNumber.replace(/\D/g, "");
-
-      // Ensure amount is a string with proper format
-      const amount =
-        typeof request.amount === "number"
-          ? request.amount.toString()
-          : request.amount;
-
+  
+      // Convert amount to string and ensure it's a whole number
+      const numericAmount = Math.round(parseFloat(request.amount.toString()) * 100).toString();
+  
       const paymentRequest = {
         endpoint: "/collection/v1_0/requesttopay",
         data: {
-          amount: amount,
+          amount: numericAmount,
           currency: request.currency || "EUR",
           externalId: request.referenceId,
           payer: {
             partyIdType: "MSISDN",
-            partyId: formattedPhone,
+            partyId: request.phoneNumber,
           },
           payerMessage: request.message || "Payment request",
           payeeNote: request.payeeNote || "Payment request",
@@ -85,23 +79,18 @@ export class SandboxMoMoService extends BaseMoMoService {
         headers: {
           Authorization: `Bearer ${token}`,
           "X-Reference-Id": request.referenceId,
-          "Ocp-Apim-Subscription-Key":"66dae406108a49988a9b860ee04d7886",
           "X-Target-Environment": "sandbox",
-          "Content-Type": "application/json",
         },
       };
-
+  
       logger.debug("Payment request details", paymentRequest);
-
       const response = await axios.post("/api/momo", paymentRequest);
-
+  
       if (response.status !== 202) {
         throw new Error(`Payment request failed. Status: ${response.status}`);
       }
-
-      logger.info("Payment request accepted", {
-        referenceId: request.referenceId,
-      });
+  
+      logger.info("Payment request accepted", { referenceId: request.referenceId });
     } catch (error) {
       logger.error("Payment request failed", error);
       throw error;

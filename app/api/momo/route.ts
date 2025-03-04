@@ -7,13 +7,10 @@ const MOMO_BASE_URL =
     ? "https://api.momodeveloper.mtn.com"
     : "https://sandbox.momodeveloper.mtn.com";
 
-const SUBSCRIPTION_KEY =
-  process.env.NODE_ENV === "production"
-    ? process.env.MOMO_PRODUCTION_SUBSCRIPTION_KEY
-    : process.env.MOMO_SANDBOX_SUBSCRIPTION_KEY;
+const SUBSCRIPTION_KEY = process.env.NEXT_PUBLIC_MOMO_SANDBOX_SUBSCRIPTION_KEY;
 
 if (!SUBSCRIPTION_KEY) {
-  throw new Error("MOMO subscription key not configured");
+  throw new Error("MOMO_SANDBOX_SUBSCRIPTION_KEY is not configured");
 }
 
 export async function POST(request: NextRequest) {
@@ -21,15 +18,23 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { endpoint, data, headers } = body;
 
+    // Validate required fields
+    if (!endpoint || !data) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Always include subscription key in headers
     const requestHeaders = {
       ...headers,
       "Content-Type": "application/json",
       "Ocp-Apim-Subscription-Key": SUBSCRIPTION_KEY,
     };
 
-    logger.debug("MTN API Request", {
+    logger.debug("Outgoing request", {
       url: `${MOMO_BASE_URL}${endpoint}`,
-      method: "POST",
       headers: requestHeaders,
       data,
     });
@@ -39,30 +44,19 @@ export async function POST(request: NextRequest) {
       url: `${MOMO_BASE_URL}${endpoint}`,
       data,
       headers: requestHeaders,
-      validateStatus: null, // Allow any status code
+      validateStatus: (status) => true,
     });
 
     logger.debug("MTN API Response", {
       status: response.status,
       data: response.data,
-      headers: response.headers,
     });
 
-    // Return response maintaining the original status code
-    return NextResponse.json(response.data, {
-      status: response.status,
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    return NextResponse.json(response.data, { status: response.status });
   } catch (error: any) {
-    logger.error("MTN API Error", {
-      message: error.message,
-      response: error.response?.data,
-    });
-
+    logger.error("API request failed", error);
     return NextResponse.json(
-      { error: error.response?.data || error.message },
+      { error: error.message },
       { status: error.response?.status || 500 }
     );
   }
